@@ -1,0 +1,144 @@
+'use client'
+
+import { useState } from 'react'
+import { sendOTP, verifyOTP } from '../actions'
+import { Mail, KeyRound, Loader2, Info } from 'lucide-react'
+import Link from 'next/link'
+
+export default function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [step, setStep] = useState<'email' | 'otp'>('email')
+  const [error, setError] = useState('')
+
+  async function handleSendOtp(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    
+    const formData = new FormData(e.currentTarget)
+    const res = await sendOTP(formData)
+    
+    if (res.error) {
+      setError(res.error)
+    } else {
+      setStep('otp')
+    }
+    setLoading(false)
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    
+    const formData = new FormData(e.currentTarget)
+    formData.append('email', email)
+    const res = await verifyOTP(formData)
+    
+    if (res?.error) {
+      setError(res.error)
+      setLoading(false)
+    }
+    // Success redirects in server action
+  }
+
+  return (
+    <>
+      <div>
+        <h3 className="text-xl font-semibold text-center text-gray-800">
+          {step === 'email' ? 'Sign in to your account' : 'Verify your email'}
+        </h3>
+      </div>
+      
+      {error && (
+        <div className="bg-red-50 p-3 rounded-md text-sm text-red-600 border border-red-200 flex items-start gap-2">
+          <Info className="w-5 h-5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {step === 'email' ? (
+        <form className="mt-8 space-y-6" onSubmit={handleSendOtp}>
+          <div>
+            <label htmlFor="email" className="sr-only">Email address</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Mail className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="appearance-none rounded-lg relative block w-full px-3 py-3 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Email address"
+              />
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Send Login Code'}
+            </button>
+          </div>
+          
+          <div className="text-center text-sm text-gray-600">
+             Don't have an account?{' '}
+             <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
+               Sign up
+             </Link>
+          </div>
+        </form>
+      ) : (
+        <form className="mt-8 space-y-6" onSubmit={handleVerifyOtp}>
+         <div>
+            <p className="text-sm text-gray-600 mb-4 text-center">
+              We've sent a one-time password to <strong>{email}</strong>
+            </p>
+            <label htmlFor="token" className="sr-only">Auth Code</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <KeyRound className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                id="token"
+                name="token"
+                type="text"
+                required
+                className="appearance-none rounded-lg relative block w-full px-3 py-3 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Enter 6-digit code"
+              />
+            </div>
+          </div>
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify & Login'}
+            </button>
+          </div>
+          
+          <div className="text-center text-sm">
+             <button 
+               type="button" 
+               onClick={() => setStep('email')} 
+               className="font-medium text-blue-600 hover:text-blue-500"
+             >
+               Use a different email
+             </button>
+          </div>
+        </form>
+      )}
+    </>
+  )
+}
