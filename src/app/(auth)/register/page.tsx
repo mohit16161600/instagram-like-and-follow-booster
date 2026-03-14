@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { sendOTP, verifyOTP } from '../actions'
 import { Mail, KeyRound, Loader2, Info } from 'lucide-react'
 import Link from 'next/link'
@@ -10,6 +10,13 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'email' | 'otp'>('email')
   const [error, setError] = useState('')
+  const [cooldown, setCooldown] = useState(0)
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const interval = window.setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000)
+    return () => window.clearInterval(interval)
+  }, [cooldown])
 
   async function handleSendOtp(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -23,6 +30,8 @@ export default function RegisterPage() {
       setError(res.error)
     } else {
       setStep('otp')
+      // Prevent immediate resends and reduce chance of hitting email rate limits
+      setCooldown(60)
     }
     setLoading(false)
   }
@@ -83,10 +92,16 @@ export default function RegisterPage() {
           <div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || cooldown > 0}
               className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-70"
             >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Get Sign Up Code'}
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : cooldown > 0 ? (
+                `Resend in ${cooldown}s`
+              ) : (
+                'Get Sign Up Code'
+              )}
             </button>
           </div>
           
