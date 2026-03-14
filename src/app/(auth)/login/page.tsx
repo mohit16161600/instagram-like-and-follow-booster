@@ -128,8 +128,12 @@ export default function LoginPage() {
                 name="token"
                 type="text"
                 required
+                inputMode="numeric"
+                pattern="\d{6,8}"
+                maxLength={8}
                 className="appearance-none rounded-lg relative block w-full px-3 py-3 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Enter 6-digit code"
+                placeholder="Enter 6-8 digit code"
+                title="Enter the 6-8 digit code from the email"
               />
             </div>
           </div>
