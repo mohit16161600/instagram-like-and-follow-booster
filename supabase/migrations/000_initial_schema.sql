@@ -6,7 +6,7 @@ CREATE TABLE public.users (
   email TEXT NOT NULL,
   instagram_username TEXT,
   profile_link TEXT,
-  points INTEGER DEFAULT 0,
+  points INTEGER DEFAULT 50,
   role TEXT DEFAULT 'user', -- 'admin' or 'user'
   banned BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -38,7 +38,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.users (id, email, points)
-  VALUES (new.id, new.email, 0);
+  VALUES (new.id, new.email, 50);
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

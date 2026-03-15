@@ -31,6 +31,19 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Ensure every user starts with 50 points (for existing users on first login)
+  if (user) {
+    const { data: userRecord } = await supabase
+      .from('users')
+      .select('points')
+      .eq('id', user.id)
+      .single()
+
+    if (!userRecord?.points) {
+      await supabase.from('users').update({ points: 50 }).eq('id', user.id)
+    }
+  }
+
   // Define protected routes
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard') || 
                            request.nextUrl.pathname.startsWith('/profile') ||
