@@ -6,9 +6,13 @@ export async function updateSession(request: NextRequest) {
     request,
   })
 
+  // Prefer the service role key for server-side middleware operations if available.
+  // This avoids RLS blocking reads/writes when policies are not defined.
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseKey,
     {
       cookies: {
         getAll() {
@@ -31,7 +35,8 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Ensure every user starts with 50 points (for existing users on first login)
+  // Ensure every user has a row in `public.users` and starts with 50 points.
+  // This helps when the trigger/insert might not have run for existing auth users.
   if (user) {
     const { data: userRecord } = await supabase
       .from('users')
@@ -39,7 +44,11 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    if (!userRecord?.points) {
+    if (!userRecord) {
+      await supabase
+        .from('users')
+        .insert({ id: user.id, email: user.email ?? '', points: 50 })
+    } else if (userRecord.points === null || userRecord.points === 0) {
       await supabase.from('users').update({ points: 50 }).eq('id', user.id)
     }
   }
