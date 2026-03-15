@@ -1,4 +1,6 @@
 -- Users table extends auth.users
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 CREATE TABLE public.users (
   id UUID REFERENCES auth.users NOT NULL PRIMARY KEY,
   email TEXT NOT NULL,

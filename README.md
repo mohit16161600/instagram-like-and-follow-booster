@@ -29,6 +29,26 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Supabase setup
+
+1. Copy `.env.local.example` to `.env.local` and fill in your Supabase project values:
+
+```bash
+cp .env.local.example .env.local
+```
+
+2. Run the dev server and hit the health endpoint to verify the connection:
+
+- Visit: `http://localhost:3000/api/health`
+
+If Supabase is connected and the `users` table exists, you should see a JSON response like:
+
+```json
+{ "ok": true, "message": "Supabase connected (users table query succeeded)" }
+```
+
+If it fails, check your environment variables and ensure your Supabase project has the schema from `supabase/migrations/000_initial_schema.sql` applied.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
