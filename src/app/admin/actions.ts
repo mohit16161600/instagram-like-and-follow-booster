@@ -21,6 +21,17 @@ export async function updateUserSettings(formData: FormData) {
   } else if (action === 'points') {
     const newPoints = parseInt(formData.get('points') as string, 10)
     await supabase.from('users').update({ points: newPoints }).eq('id', userId)
+  } else if (action === 'email') {
+    const newEmail = formData.get('email') as string
+    await supabase.from('users').update({ email: newEmail }).eq('id', userId)
+  } else if (action === 'instagram_username') {
+    const newUsername = formData.get('instagram_username') as string
+    await supabase.from('users').update({ instagram_username: newUsername }).eq('id', userId)
+  } else if (action === 'role') {
+    const newRole = formData.get('role') as string
+    if (newRole === 'admin' || newRole === 'user') {
+      await supabase.from('users').update({ role: newRole }).eq('id', userId)
+    }
   }
 
   revalidatePath('/admin')
