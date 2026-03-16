@@ -27,6 +27,22 @@ type TaskCardProps = {
   previousAttempt: PreviousAttempt
 }
 
+function getDefaultVerificationValue(task: Task) {
+  try {
+    const parsed = new URL(task.instagram_link)
+    const segments = parsed.pathname.split('/').filter(Boolean)
+
+    if (task.task_type === 'follow') {
+      const username = segments[0] ?? ''
+      return username ? `@${username}` : ''
+    }
+
+    return task.instagram_link
+  } catch {
+    return task.task_type === 'like' ? task.instagram_link : ''
+  }
+}
+
 function getInstruction(task: Task) {
   if (task.task_type === 'follow') {
     return {
@@ -76,6 +92,7 @@ export default function TaskCard({ task, queueCount, previousAttempt }: TaskCard
 
       window.open(task.instagram_link, '_blank', 'noopener,noreferrer')
       setOpenedLink(true)
+      setVerificationInput((currentValue) => currentValue || getDefaultVerificationValue(task))
       setFeedback('')
       setSuccessMessage('')
     })
@@ -84,6 +101,15 @@ export default function TaskCard({ task, queueCount, previousAttempt }: TaskCard
   function handleVerify() {
     if (!openedLink) {
       setFeedback('Open the Instagram task first, complete it there, then submit your verification.')
+      return
+    }
+
+    if (!verificationInput.trim()) {
+      setFeedback(
+        task.task_type === 'follow'
+          ? 'Open the profile, follow it, then verify using the Instagram username shown for this task.'
+          : 'Open the post, like it, then verify using the same Instagram post link.'
+      )
       return
     }
 
