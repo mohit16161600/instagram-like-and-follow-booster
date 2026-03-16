@@ -106,7 +106,7 @@ export default function LoginPage() {
           </div>
           
           <div className="text-center text-sm text-gray-600">
-             Don't have an account?{' '}
+             Don&apos;t have an account?{' '}
              <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
                Sign up
              </Link>
@@ -116,7 +116,7 @@ export default function LoginPage() {
         <form className="mt-8 space-y-6" onSubmit={handleVerifyOtp}>
          <div>
             <p className="text-sm text-gray-600 mb-4 text-center">
-              We've sent a one-time password to <strong>{email}</strong>
+              We&apos;ve sent a one-time password to <strong>{email}</strong>
             </p>
             <label htmlFor="token" className="sr-only">Auth Code</label>
             <div className="relative">

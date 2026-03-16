@@ -86,7 +86,7 @@ export default function RegisterPage() {
                 placeholder="Email address"
               />
             </div>
-            <p className="mt-2 text-xs text-gray-500">We'll send you a secure code to confirm your email.</p>
+            <p className="mt-2 text-xs text-gray-500">We&apos;ll send you a secure code to confirm your email.</p>
           </div>
 
           <div>
@@ -116,7 +116,7 @@ export default function RegisterPage() {
         <form className="mt-8 space-y-6" onSubmit={handleVerifyOtp}>
          <div>
             <p className="text-sm text-gray-600 mb-4 text-center">
-              We've sent a one-time password to <strong>{email}</strong>
+              We&apos;ve sent a one-time password to <strong>{email}</strong>
             </p>
             <label htmlFor="token" className="sr-only">Auth Code</label>
             <div className="relative">

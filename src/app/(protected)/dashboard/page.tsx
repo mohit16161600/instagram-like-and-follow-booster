@@ -3,8 +3,7 @@ import Link from 'next/link'
 import { TrendingUp, PlusCircle, Coins } from 'lucide-react'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  await createClient()
   
   // Dashboard stats
   return (

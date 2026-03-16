@@ -3,33 +3,229 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-export async function completeTaskAction(taskId: string, reward: number) {
+const INSTAGRAM_HOSTS = new Set(['instagram.com', 'www.instagram.com'])
+
+function normalizeInstagramUrl(value: string) {
+  const parsed = new URL(value)
+  if (!INSTAGRAM_HOSTS.has(parsed.hostname)) {
+    throw new Error('Task link must be an Instagram URL.')
+  }
+
+  return {
+    origin: `https://${parsed.hostname.toLowerCase()}`,
+    pathname: parsed.pathname.replace(/\/+$/, '').toLowerCase(),
+  }
+}
+
+function normalizeUsername(value: string) {
+  return value.trim().replace(/^@+/, '').replace(/\/+$/, '').toLowerCase()
+}
+
+function getTaskReward(taskType: string) {
+  return taskType === 'follow' ? 2 : 1
+}
+
+async function getCurrentQueueTaskId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+) {
+  const { data: activeTasks, error: activeTasksError } = await supabase
+    .from('tasks')
+    .select('id, user_id')
+    .eq('status', 'active')
+    .neq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(50)
+
+  if (activeTasksError || !activeTasks?.length) {
+    return null
+  }
+
+  const taskIds = activeTasks.map((task) => task.id)
+  const actionQuery = await supabase
+    .from('actions')
+    .select('task_id, status')
+    .eq('completed_by_user', userId)
+    .in('task_id', taskIds)
+
+  let approvedTaskIds = new Set<string>()
+
+  if (!actionQuery.error) {
+    approvedTaskIds = new Set(
+      ((actionQuery.data as Array<{ task_id: string; status: string | null }> | null) ?? [])
+        .filter((action) => action.status === 'approved')
+        .map((action) => action.task_id)
+    )
+  } else {
+    const legacyActionQuery = await supabase
+      .from('actions')
+      .select('task_id')
+      .eq('completed_by_user', userId)
+      .in('task_id', taskIds)
+
+    if (legacyActionQuery.error) {
+      return null
+    }
+
+    approvedTaskIds = new Set(
+      ((legacyActionQuery.data as Array<{ task_id: string }> | null) ?? []).map((action) => action.task_id)
+    )
+  }
+
+  const nextTask = activeTasks.find((candidate) => !approvedTaskIds.has(candidate.id))
+  return nextTask?.id ?? null
+}
+
+export async function checkTaskAvailability(taskId: string) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Not authenticated' }
+  }
+
+  const currentQueueTaskId = await getCurrentQueueTaskId(supabase, user.id)
+  if (!currentQueueTaskId) {
+    revalidatePath('/tasks-feed')
+    return { unavailable: true }
+  }
+
+  if (currentQueueTaskId !== taskId) {
+    revalidatePath('/tasks-feed')
+    return { unavailable: true }
+  }
+
+  const { data: task, error } = await supabase
+    .from('tasks')
+    .select('id, status, points_cost')
+    .eq('id', taskId)
+    .single()
+
+  if (error || !task || task.status !== 'active' || task.points_cost <= 0) {
+    revalidatePath('/tasks-feed')
+    return { unavailable: true }
+  }
+
+  return { available: true }
+}
+
+export async function completeTaskAction(taskId: string, verificationInput: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { error: 'Not authenticated' }
 
-  // Check if task exists and wasn't already completed by user
-  // This is handled partly by the UNIQUE constraint on (task_id, completed_by_user)
-  // in the `actions` schema. Let's just insert and catch if conflict.
+  const currentQueueTaskId = await getCurrentQueueTaskId(supabase, user.id)
+  if (currentQueueTaskId && currentQueueTaskId !== taskId) {
+    return { error: 'Complete the current task in the queue first. The next task will unlock after that.' }
+  }
+
+  const cleanedInput = verificationInput.trim()
+  if (!cleanedInput) {
+    return { error: 'Complete the task first, then submit the verification field properly.' }
+  }
+
+  const { data: task, error: taskError } = await supabase
+    .from('tasks')
+    .select('id, user_id, task_type, instagram_link, points_cost, status')
+    .eq('id', taskId)
+    .single()
+
+  if (taskError || !task) {
+    revalidatePath('/tasks-feed')
+    return { unavailable: true, error: 'This task is no longer available.' }
+  }
+
+  if (task.user_id === user.id) {
+    return { error: 'You cannot complete your own task.' }
+  }
+
+  if (task.status !== 'active' || task.points_cost <= 0) {
+    revalidatePath('/tasks-feed')
+    return { unavailable: true, error: 'This task has already been completed.' }
+  }
+
+  const { data: existingAction } = await supabase
+    .from('actions')
+    .select('id, status')
+    .eq('task_id', taskId)
+    .eq('completed_by_user', user.id)
+    .maybeSingle()
+
+  if (existingAction?.status === 'approved') {
+    return { error: 'You have already completed this task.' }
+  }
+
+  let verificationError = ''
+
+  try {
+    const normalizedTask = normalizeInstagramUrl(task.instagram_link)
+
+    if (task.task_type === 'follow') {
+      const expectedUsername = normalizeUsername(normalizedTask.pathname.split('/')[1] ?? '')
+      const submittedUsername = normalizeUsername(cleanedInput)
+
+      if (!expectedUsername || submittedUsername !== expectedUsername) {
+        verificationError = `Follow the correct Instagram profile, then type @${expectedUsername || 'username'} exactly to continue.`
+      }
+    } else {
+      const submittedUrl = normalizeInstagramUrl(cleanedInput)
+      const samePath = submittedUrl.pathname === normalizedTask.pathname
+      const sameHost = submittedUrl.origin === normalizedTask.origin
+
+      if (!samePath || !sameHost) {
+        verificationError = 'Open the exact Instagram post from this task and paste that same post link to continue.'
+      }
+    }
+  } catch (error) {
+    verificationError = error instanceof Error ? error.message : 'Verification failed. Please try again.'
+  }
+
+  if (verificationError) {
+    await supabase
+      .from('actions')
+      .upsert(
+        {
+          task_id: taskId,
+          completed_by_user: user.id,
+          points_earned: 0,
+          status: 'rejected',
+          verification_input: cleanedInput,
+          review_notes: verificationError,
+        },
+        { onConflict: 'task_id,completed_by_user' }
+      )
+
+    revalidatePath('/tasks-feed')
+    return { error: verificationError }
+  }
+
+  const reward = Math.min(getTaskReward(task.task_type), task.points_cost)
+  if (reward <= 0) {
+    revalidatePath('/tasks-feed')
+    return { unavailable: true, error: 'This task has already been completed.' }
+  }
 
   const { error: actionError } = await supabase
     .from('actions')
-    .insert({
-      task_id: taskId,
-      completed_by_user: user.id,
-      points_earned: reward
-    })
+    .upsert(
+      {
+        task_id: taskId,
+        completed_by_user: user.id,
+        points_earned: reward,
+        status: 'approved',
+        verification_input: cleanedInput,
+        review_notes: null,
+      },
+      { onConflict: 'task_id,completed_by_user' }
+    )
 
   if (actionError) {
-    if (actionError.code === '23505') { // unique violation
-      return { error: 'You have already completed this task.' }
-    }
     return { error: 'Failed to record action.' }
   }
 
-  // Add points to user
-  // Get current points
   const { data: userData } = await supabase
     .from('users')
     .select('points')
@@ -38,13 +234,32 @@ export async function completeTaskAction(taskId: string, reward: number) {
 
   const currentPoints = userData?.points || 0
 
-  await supabase
+  const { error: userUpdateError } = await supabase
     .from('users')
     .update({ points: currentPoints + reward })
     .eq('id', user.id)
 
+  if (userUpdateError) {
+    return { error: 'Task was verified, but points could not be added.' }
+  }
+
+  const remainingPoints = Math.max(task.points_cost - reward, 0)
+
+  const { error: taskUpdateError } = await supabase
+    .from('tasks')
+    .update({
+      points_cost: remainingPoints,
+      status: remainingPoints === 0 ? 'completed' : 'active',
+    })
+    .eq('id', taskId)
+
+  if (taskUpdateError) {
+    return { error: 'Task was verified, but the task balance could not be updated.' }
+  }
+
   revalidatePath('/tasks-feed')
   revalidatePath('/dashboard')
+  revalidatePath('/create-task')
   
-  return { success: true }
+  return { success: true, reward }
 }

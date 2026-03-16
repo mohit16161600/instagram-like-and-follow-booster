@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { updateProfile } from './actions'
-import { Instagram, Link as LinkIcon, Save } from 'lucide-react'
+import { Link as LinkIcon, Save } from 'lucide-react'
 
 export default async function ProfilePage() {
   const supabase = await createClient()

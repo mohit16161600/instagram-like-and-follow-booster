@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createTask } from './actions'
 import { AlertCircle, Link as LinkIcon } from 'lucide-react'
 
 export default function CreateTaskPage() {
+  const router = useRouter()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -18,7 +20,11 @@ export default function CreateTaskPage() {
     if (res?.error) {
       setError(res.error)
       setLoading(false)
+      return
     }
+
+    router.push('/tasks-feed?created=1')
+    router.refresh()
   }
 
   return (

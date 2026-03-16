@@ -53,7 +53,7 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">1. Earn Points</h3>
               <p className="text-gray-600">
-                Like or follow other users' profiles via our tasks feed to earn points. Follows give 2 points, likes give 1 point.
+                Like or follow other users&apos; profiles via our tasks feed to earn points. Follows give 2 points, likes give 1 point.
               </p>
             </div>
 
