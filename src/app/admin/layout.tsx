@@ -4,11 +4,11 @@ import {
   Activity,
   ArrowLeft,
   LayoutDashboard,
-  LogOut,
   ShieldCheck,
   Users,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/server'
+import ConfirmSignOutButton from '@/components/ConfirmSignOutButton'
 
 export default async function AdminLayout({
   children,
@@ -95,23 +95,13 @@ export default async function AdminLayout({
               </ul>
             </div>
 
-            <form
-              action={async () => {
-                'use server'
-                const actionClient = await createClient()
-                await actionClient.auth.signOut()
-                redirect('/login')
-              }}
-              className="mt-8"
-            >
-              <button
-                type="submit"
+            <div className="mt-8">
+              <ConfirmSignOutButton
+                label="Sign out"
                 className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-100 transition hover:bg-red-500/20"
-              >
-                <LogOut className="h-4 w-4" />
-                Sign out
-              </button>
-            </form>
+                iconClassName="h-4 w-4"
+              />
+            </div>
           </aside>
 
           <main className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">{children}</main>

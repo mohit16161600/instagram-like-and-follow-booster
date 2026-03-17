@@ -16,7 +16,7 @@ export default function CreateTaskPage() {
     setError('')
     const formData = new FormData(e.currentTarget)
     const res = await createTask(formData)
-    
+
     if (res?.error) {
       setError(res.error)
       setLoading(false)
@@ -28,41 +28,50 @@ export default function CreateTaskPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto mt-8">
-      <div className="bg-white shadow px-4 py-5 sm:rounded-lg sm:p-6 border border-gray-100">
-        <div className="md:grid md:grid-cols-3 md:gap-6">
-          <div className="md:col-span-1">
-            <h3 className="text-lg font-medium leading-6 text-gray-900">Request Engagement</h3>
-            <p className="mt-1 text-sm text-gray-500">
+    <div className="mx-auto max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-3xl font-semibold text-slate-950">Create a task</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+          Build a new request with clearer input fields and more readable instructions so users know exactly what to do.
+        </p>
+      </div>
+
+      <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+        <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
+          <div className="border-b border-slate-200 bg-slate-950 px-6 py-8 text-white md:border-b-0 md:border-r">
+            <h3 className="text-xl font-semibold">Request engagement</h3>
+            <p className="mt-3 text-sm leading-6 text-slate-200">
               Create a new task for other users to interact with your Instagram profile.
             </p>
-            <div className="mt-4 p-4 bg-blue-50 rounded-md border border-blue-100">
-              <p className="text-xs text-blue-700">
-                <strong>Cost:</strong> 20 points per request.<br/>
-                Follow tasks reward users 2 pts.<br/>
+            <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-5">
+              <p className="text-sm font-semibold text-white">Cost and rewards</p>
+              <p className="mt-3 text-sm leading-6 text-slate-200">
+                <strong className="text-white">Cost:</strong> 20 points per request.
+                <br />
+                Follow tasks reward users 2 pts.
+                <br />
                 Like tasks reward users 1 pt.
               </p>
             </div>
           </div>
-          
-          <div className="mt-5 md:mt-0 md:col-span-2">
-            {error && (
-              <div className="mb-4 bg-red-50 p-4 rounded-md flex items-start">
-                <AlertCircle className="w-5 h-5 text-red-400 mr-2 shrink-0" />
+
+          <div className="px-6 py-8">
+            {error ? (
+              <div className="mb-6 flex items-start rounded-2xl border border-red-200 bg-red-50 p-4">
+                <AlertCircle className="mr-2 h-5 w-5 shrink-0 text-red-500" />
                 <span className="text-sm text-red-700">{error}</span>
               </div>
-            )}
+            ) : null}
             <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-6 gap-6">
-                
                 <div className="col-span-6">
-                  <label htmlFor="task_type" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="task_type" className="block text-sm font-medium text-slate-800">
                     Task Type
                   </label>
                   <select
                     id="task_type"
                     name="task_type"
-                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
+                    className="mt-2 block w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
                     required
                   >
                     <option value="follow">Get Followers</option>
@@ -71,31 +80,30 @@ export default function CreateTaskPage() {
                 </div>
 
                 <div className="col-span-6">
-                  <label htmlFor="instagram_link" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="instagram_link" className="block text-sm font-medium text-slate-800">
                     Instagram Link
                   </label>
-                  <p className="text-xs text-gray-500 mb-1">Link to your profile (for follows) or specific post (for likes).</p>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <LinkIcon className="h-4 w-4 text-gray-400" />
+                  <p className="mb-2 text-xs leading-5 text-slate-500">Link to your profile for follows or a specific post or reel for likes.</p>
+                  <div className="relative rounded-2xl">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                      <LinkIcon className="h-4 w-4 text-slate-400" />
                     </div>
                     <input
                       type="url"
                       name="instagram_link"
                       id="instagram_link"
-                      className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2 border px-3"
+                      className="block w-full rounded-2xl border border-slate-300 py-3 pl-11 pr-4 text-sm text-slate-950 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
                       placeholder="https://instagram.com/..."
                       required
                     />
                   </div>
                 </div>
-
               </div>
-              <div className="mt-6 flex justify-end">
+              <div className="mt-8 flex justify-end">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="bg-blue-600 border border-transparent rounded-md shadow-sm py-2 px-4 inline-flex justify-center text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70"
+                  className="inline-flex justify-center rounded-full bg-slate-950 px-6 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-70"
                 >
                   {loading ? 'Creating...' : 'Create Task'}
                 </button>

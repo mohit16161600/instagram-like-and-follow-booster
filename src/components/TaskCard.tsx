@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { checkTaskAvailability, completeTaskAction } from '@/app/(protected)/tasks-feed/actions'
 import { AlertCircle, ArrowRight, CheckCircle2, ExternalLink, Heart, Loader2, Sparkles, UserPlus } from 'lucide-react'
@@ -26,6 +26,8 @@ type TaskCardProps = {
   queueCount: number
   previousAttempt: PreviousAttempt
 }
+
+const MINIMUM_VISIT_MS = 3_000
 
 function getDefaultVerificationValue(task: Task) {
   try {
@@ -67,14 +69,50 @@ export default function TaskCard({ task, queueCount, previousAttempt }: TaskCard
   const [openedLink, setOpenedLink] = useState(false)
   const [feedback, setFeedback] = useState(previousAttempt?.status === 'rejected' ? previousAttempt.review_notes ?? '' : '')
   const [successMessage, setSuccessMessage] = useState('')
-  const [isPending, startTransition] = useTransition()
+  const [isOpeningTask, setIsOpeningTask] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [startTime, setStartTime] = useState<number | null>(null)
+  const [remainingMs, setRemainingMs] = useState(MINIMUM_VISIT_MS)
 
   const reward = task.task_type === 'follow' ? 2 : 1
   const Icon = task.task_type === 'follow' ? UserPlus : Heart
   const instruction = getInstruction(task)
+  const countdownSeconds = Math.max(0, Math.ceil(remainingMs / 1000))
+  const canSubmit = openedLink && !!startTime && remainingMs <= 0 && !isProcessing && !isOpeningTask
+  const storageKey = `task-verification-start-${task.id}`
 
-  function handleOpenTask() {
-    startTransition(async () => {
+  useEffect(() => {
+    localStorage.removeItem(storageKey)
+    setOpenedLink(false)
+    setStartTime(null)
+    setRemainingMs(MINIMUM_VISIT_MS)
+  }, [storageKey])
+
+  useEffect(() => {
+    if (!startTime) {
+      setRemainingMs(MINIMUM_VISIT_MS)
+      return
+    }
+
+    const updateRemaining = () => {
+      const elapsed = Date.now() - startTime
+      setRemainingMs(Math.max(MINIMUM_VISIT_MS - elapsed, 0))
+    }
+
+    updateRemaining()
+
+    const intervalId = window.setInterval(updateRemaining, 250)
+    return () => window.clearInterval(intervalId)
+  }, [startTime])
+
+  async function handleOpenTask() {
+    if (isOpeningTask || isProcessing) {
+      return
+    }
+
+    setIsOpeningTask(true)
+
+    try {
       const availability = await checkTaskAvailability(task.id)
 
       if (availability?.unavailable) {
@@ -91,16 +129,41 @@ export default function TaskCard({ task, queueCount, previousAttempt }: TaskCard
       }
 
       window.open(task.instagram_link, '_blank', 'noopener,noreferrer')
+      const openedAt = Date.now()
+      localStorage.setItem(storageKey, openedAt.toString())
       setOpenedLink(true)
+      setStartTime(openedAt)
+      setRemainingMs(MINIMUM_VISIT_MS)
       setVerificationInput((currentValue) => currentValue || getDefaultVerificationValue(task))
       setFeedback('')
       setSuccessMessage('')
-    })
+    } finally {
+      setIsOpeningTask(false)
+    }
   }
 
-  function handleVerify() {
+  async function handleVerify() {
+    if (isProcessing || isOpeningTask) {
+      return
+    }
+
     if (!openedLink) {
       setFeedback('Open the Instagram task first, complete it there, then submit your verification.')
+      return
+    }
+
+    const storedStartTime = Number(localStorage.getItem(storageKey) ?? '')
+    const activeStartTime = Number.isFinite(storedStartTime) && storedStartTime > 0 ? storedStartTime : startTime
+
+    if (!activeStartTime) {
+      setOpenedLink(false)
+      setFeedback('Session expired after refresh. Open the Instagram link again to start a fresh verification attempt.')
+      return
+    }
+
+    const elapsed = Date.now() - activeStartTime
+    if (elapsed < MINIMUM_VISIT_MS) {
+      setFeedback('Invalid attempt, please try again. Please spend at least 2 seconds on the page for zero error for properly verify.')
       return
     }
 
@@ -113,7 +176,9 @@ export default function TaskCard({ task, queueCount, previousAttempt }: TaskCard
       return
     }
 
-    startTransition(async () => {
+    setIsProcessing(true)
+
+    try {
       const result = await completeTaskAction(task.id, verificationInput)
 
       if (result?.unavailable) {
@@ -133,8 +198,13 @@ export default function TaskCard({ task, queueCount, previousAttempt }: TaskCard
       setSuccessMessage(`Task completed. You earned +${reward} point${reward > 1 ? 's' : ''}. Loading the next task...`)
       setVerificationInput('')
       setOpenedLink(false)
+      setStartTime(null)
+      setRemainingMs(MINIMUM_VISIT_MS)
+      localStorage.removeItem(storageKey)
       router.refresh()
-    })
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   return (
@@ -174,36 +244,41 @@ export default function TaskCard({ task, queueCount, previousAttempt }: TaskCard
                 <button
                   type="button"
                   onClick={handleOpenTask}
-                  disabled={isPending}
+                  disabled={isOpeningTask || isProcessing || openedLink}
                   className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {isPending ? (
+                  {isOpeningTask ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Checking task
                     </>
+                  ) : openedLink ? (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Instagram Opened
+                    </>
                   ) : (
                     <>
                       <ExternalLink className="mr-2 h-4 w-4" />
-                      Open task
+                      Open Instagram
                     </>
                   )}
                 </button>
                 <button
                   type="button"
                   onClick={handleVerify}
-                  disabled={isPending}
+                  disabled={!openedLink || isProcessing || isOpeningTask}
                   className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {isPending ? (
+                  {isProcessing ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Verifying
+                      Processing...
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="mr-2 h-4 w-4" />
-                      Verify task
+                      Done
                     </>
                   )}
                 </button>
@@ -217,6 +292,20 @@ export default function TaskCard({ task, queueCount, previousAttempt }: TaskCard
             >
               {task.instagram_link}
             </a>
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <p className="font-semibold">Verification timer</p>
+              <p className="mt-1">
+                Please spend at least 2 seconds on the page for zero error for properly verify.
+              </p>
+              <p className="mt-1">
+                Minimum required time: 3 seconds.
+                {openedLink
+                  ? remainingMs > 0
+                    ? ` Countdown: ${countdownSeconds}s remaining before Done can pass.`
+                    : ' Timer complete. You can click Done now.'
+                  : ' Open Instagram to start the countdown.'}
+              </p>
+            </div>
           </div>
 
           {previousAttempt?.status === 'rejected' && previousAttempt.review_notes ? (
@@ -264,6 +353,7 @@ export default function TaskCard({ task, queueCount, previousAttempt }: TaskCard
                 value={verificationInput}
                 onChange={(event) => setVerificationInput(event.target.value)}
                 placeholder={instruction.placeholder}
+                disabled={isProcessing}
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
               />
               <p className="mt-2 text-xs leading-5 text-slate-500">
@@ -276,6 +366,17 @@ export default function TaskCard({ task, queueCount, previousAttempt }: TaskCard
             <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-900">
               <p className="font-semibold">What happens after approval</p>
               <p className="mt-1">Your points increase by {reward}, this task budget is reduced by {reward}, and the next task becomes available.</p>
+            </div>
+
+            <div className={`rounded-2xl p-4 text-sm ${canSubmit ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-100 text-slate-700'}`}>
+              <p className="font-semibold">Attempt status</p>
+              <p className="mt-1">
+                {!openedLink
+                  ? 'Done stays disabled until the Instagram link is opened.'
+                  : remainingMs > 0
+                    ? `Wait ${countdownSeconds}s more before completing this task.`
+                    : 'Verification window passed. You can complete this task now.'}
+              </p>
             </div>
 
             <div className="flex items-center justify-between text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
