@@ -29,50 +29,22 @@ async function getCurrentQueueTaskId(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string
 ) {
-  const { data: activeTasks, error: activeTasksError } = await supabase
+  // Single round-trip to find the first task the user hasn't successfully completed
+  const { data: tasks, error } = await supabase
     .from('tasks')
-    .select('id, user_id')
+    .select('id, actions(id)')
     .eq('status', 'active')
     .neq('user_id', userId)
+    .eq('actions.completed_by_user', userId)
     .order('created_at', { ascending: true })
     .limit(50)
 
-  if (activeTasksError || !activeTasks?.length) {
+  if (error || !tasks) {
     return null
   }
 
-  const taskIds = activeTasks.map((task) => task.id)
-  const actionQuery = await supabase
-    .from('actions')
-    .select('task_id, status')
-    .eq('completed_by_user', userId)
-    .in('task_id', taskIds)
-
-  let approvedTaskIds = new Set<string>()
-
-  if (!actionQuery.error) {
-    approvedTaskIds = new Set(
-      ((actionQuery.data as Array<{ task_id: string; status: string | null }> | null) ?? [])
-        .filter((action) => action.status === 'approved')
-        .map((action) => action.task_id)
-    )
-  } else {
-    const legacyActionQuery = await supabase
-      .from('actions')
-      .select('task_id')
-      .eq('completed_by_user', userId)
-      .in('task_id', taskIds)
-
-    if (legacyActionQuery.error) {
-      return null
-    }
-
-    approvedTaskIds = new Set(
-      ((legacyActionQuery.data as Array<{ task_id: string }> | null) ?? []).map((action) => action.task_id)
-    )
-  }
-
-  const nextTask = activeTasks.find((candidate) => !approvedTaskIds.has(candidate.id))
+  // Find the first task where there are no actions for this user
+  const nextTask = tasks.find(t => !t.actions || (Array.isArray(t.actions) && t.actions.length === 0))
   return nextTask?.id ?? null
 }
 
@@ -149,12 +121,12 @@ export async function completeTaskAction(taskId: string, verificationInput: stri
 
   const { data: existingAction } = await supabase
     .from('actions')
-    .select('id, status')
+    .select('id')
     .eq('task_id', taskId)
     .eq('completed_by_user', user.id)
     .maybeSingle()
 
-  if (existingAction?.status === 'approved') {
+  if (existingAction) {
     return { error: 'You have already completed this task.' }
   }
 
@@ -191,9 +163,6 @@ export async function completeTaskAction(taskId: string, verificationInput: stri
           task_id: taskId,
           completed_by_user: user.id,
           points_earned: 0,
-          status: 'rejected',
-          verification_input: cleanedInput,
-          review_notes: verificationError,
         },
         { onConflict: 'task_id,completed_by_user' }
       )
@@ -215,9 +184,6 @@ export async function completeTaskAction(taskId: string, verificationInput: stri
         task_id: taskId,
         completed_by_user: user.id,
         points_earned: reward,
-        status: 'approved',
-        verification_input: cleanedInput,
-        review_notes: null,
       },
       { onConflict: 'task_id,completed_by_user' }
     )

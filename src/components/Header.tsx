@@ -1,7 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
-import { Coins, LayoutDashboard, ListTodo, PlusCircle, ShieldCheck, User } from 'lucide-react'
+import { LayoutDashboard, ListTodo, PlusCircle, User } from 'lucide-react'
 import ConfirmSignOutButton from '@/components/ConfirmSignOutButton'
+import UserStats from '@/components/UserStats'
 
 async function Header() {
   const supabase = await createClient()
@@ -13,11 +14,8 @@ async function Header() {
     return null
   }
 
-  const { data: userData } = await supabase
-    .from('users')
-    .select('points, role')
-    .eq('id', user.id)
-    .single()
+  // We no longer fetch points/role here to prevent layout blocking.
+  // Instead, the <UserStats /> client component handles it asynchronously.
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
@@ -49,20 +47,11 @@ async function Header() {
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Create Task
               </Link>
-              {userData?.role === 'admin' ? (
-                <Link href="/admin" className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800 transition hover:border-emerald-300 hover:bg-emerald-100">
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  Admin Panel
-                </Link>
-              ) : null}
             </nav>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900">
-              <Coins className="mr-2 h-4 w-4 text-amber-600" />
-              {userData?.points || 0} pts
-            </div>
+            <UserStats />
             <Link href="/profile" className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-950">
               <User className="mr-2 h-4 w-4" />
               Profile

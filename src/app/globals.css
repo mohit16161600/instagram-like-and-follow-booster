@@ -36,3 +36,8 @@ select,
 textarea {
   transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
 }
+
+@utility bg-grid-slate-50 {
+  background-image: radial-gradient(circle, #f8fafc 1px, transparent 1px);
+  background-size: 24px 24px;
+}

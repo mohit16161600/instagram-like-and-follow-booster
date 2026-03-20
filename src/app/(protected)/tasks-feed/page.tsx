@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import TaskCard from '@/components/TaskCard'
-import { CheckCircle2, Clock3, Inbox, Layers3 } from 'lucide-react'
+import { CheckCircle2, Clock3, ExternalLink as ExternalLinkIcon, Inbox, Layers3, Sparkles } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +20,13 @@ type TaskFeedRecord = {
   }>
 }
 
-type TaskRow = Omit<TaskFeedRecord, 'actions'>
+type TaskRow = Omit<TaskFeedRecord, 'actions'> & {
+  users?: Array<{
+    instagram_username: string | null
+  }> | {
+    instagram_username: string | null
+  } | null
+}
 
 type UserProfileRow = {
   id: string
@@ -30,10 +36,7 @@ type UserProfileRow = {
 type ActionRow = {
   task_id: string
   completed_by_user: string
-  status: string | null
   points_earned: number | null
-  review_notes: string | null
-  verification_input: string | null
 }
 
 type LegacyActionRow = {
@@ -53,10 +56,10 @@ function attachActions(tasks: TaskRow[], actions: ActionRow[]): TaskFeedRecord[]
     const existing = actionsByTaskId.get(action.task_id) ?? []
     existing.push({
       completed_by_user: action.completed_by_user,
-      status: action.status,
+      status: 'approved',
       points_earned: action.points_earned,
-      review_notes: action.review_notes,
-      verification_input: action.verification_input,
+      review_notes: null,
+      verification_input: null,
     })
     actionsByTaskId.set(action.task_id, existing)
   }
@@ -67,15 +70,16 @@ function attachActions(tasks: TaskRow[], actions: ActionRow[]): TaskFeedRecord[]
   }))
 }
 
-async function loadActionsForTasks(supabase: Awaited<ReturnType<typeof createClient>>, taskIds: string[]) {
+async function loadActionsForTasks(supabase: Awaited<ReturnType<typeof createClient>>, taskIds: string[], userId: string) {
   if (!taskIds.length) {
     return [] as ActionRow[]
   }
 
   const primaryQuery = await supabase
     .from('actions')
-    .select('task_id, completed_by_user, status, points_earned, review_notes, verification_input')
+    .select('task_id, completed_by_user, points_earned')
     .in('task_id', taskIds)
+    .eq('completed_by_user', userId)
 
   if (!primaryQuery.error) {
     return (primaryQuery.data as ActionRow[] | null) ?? []
@@ -124,7 +128,7 @@ export default async function TasksFeedPage({ searchParams }: TasksFeedPageProps
   // Supabase syntax for this:
   const { data: allActiveTasks, error } = await supabase
     .from('tasks')
-    .select('id, task_type, instagram_link, points_cost, user_id, status')
+    .select('id, task_type, instagram_link, points_cost, user_id, status, users(instagram_username)')
     .eq('status', 'active')
     .neq('user_id', user.id)
     .order('created_at', { ascending: true })
@@ -141,17 +145,16 @@ export default async function TasksFeedPage({ searchParams }: TasksFeedPageProps
   }
 
   const taskIds = ((allActiveTasks as TaskRow[] | null) ?? []).map((task) => task.id)
-  const userIds = Array.from(new Set((((allActiveTasks as TaskRow[] | null) ?? []).map((task) => task.user_id))))
 
-  const [{ data: relatedUsers }, relatedActions] = await Promise.all([
-    userIds.length
-      ? supabase.from('users').select('id, instagram_username').in('id', userIds)
-      : Promise.resolve({ data: [] as UserProfileRow[], error: null }),
-    loadActionsForTasks(supabase, taskIds),
+  const [relatedActions] = await Promise.all([
+    loadActionsForTasks(supabase, taskIds, user.id),
   ])
 
   const usernameByUserId = new Map<string, string | null>(
-    ((relatedUsers as UserProfileRow[] | null) ?? []).map((profile) => [profile.id, profile.instagram_username])
+    ((allActiveTasks as any[] | null) ?? []).map((task) => {
+      const userData = Array.isArray(task.users) ? task.users[0] : task.users
+      return [task.user_id, userData?.instagram_username || null]
+    })
   )
 
   const allActiveTasksWithActions = attachActions(
@@ -181,27 +184,31 @@ export default async function TasksFeedPage({ searchParams }: TasksFeedPageProps
     : null
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+    <div className="max-w-4xl mx-auto space-y-12 py-8 px-4">
+      {/* 1. Page Header */}
+      <div className="text-center space-y-2">
+        <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
           Earn Points
-        </h2>
-        <p className="mt-1 flex flex-col sm:flex-row sm:flex-wrap sm:mt-0 sm:space-x-6 text-gray-500">
-          Complete these tasks to earn points for your own requests.
+        </div>
+        <h1 className="text-4xl font-black tracking-tight text-slate-900 md:text-5xl">
+          Task Dashboard
+        </h1>
+        <p className="text-lg font-medium text-slate-500 max-w-2xl mx-auto">
+          Complete tasks to grow your balance and verify actions in real-time.
         </p>
       </div>
 
       {params?.created === '1' && (
-        <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
-          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold">Your task was created successfully.</p>
-            <p className="text-sm">It is now listed in your active requests below.</p>
+        <div className="rounded-3xl border border-emerald-100 bg-emerald-50 px-6 py-4 text-emerald-800 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            <p className="font-bold text-sm">Campaign launched successfully! Your task is now live.</p>
           </div>
         </div>
       )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_0.85fr]">
+      {/* 2. Primary Task Area */}
+      <div className="w-full">
         {currentTaskForCard ? (
           <TaskCard
             task={currentTaskForCard}
@@ -209,47 +216,59 @@ export default async function TasksFeedPage({ searchParams }: TasksFeedPageProps
             previousAttempt={currentUserAction}
           />
         ) : (
-          <div className="rounded-3xl border border-gray-200 bg-white py-16 text-center shadow-sm">
-            <Inbox className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No tasks available</h3>
-            <p className="mt-1 text-sm text-gray-500">Check back later for new tasks from other users.</p>
+          <div className="rounded-[3rem] border border-slate-200 bg-white py-24 text-center shadow-xl shadow-slate-200/50">
+            <Inbox className="mx-auto h-20 w-20 text-slate-200" />
+            <h3 className="mt-6 text-2xl font-black text-slate-900">Queue is Clear</h3>
+            <p className="mt-2 text-slate-500 font-medium">There are no new tasks available right now. Check back soon!</p>
           </div>
         )}
+      </div>
 
-        <aside className="rounded-3xl border border-gray-200 bg-white/90 p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-slate-900 p-3 text-white">
-              <Layers3 className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Task Queue</h3>
-              <p className="text-sm text-gray-500">Only one task is shown at a time so users stay focused and the flow feels smoother.</p>
-            </div>
-          </div>
-
-          <div className="mt-6 space-y-4">
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                <Clock3 className="h-4 w-4" />
-                Waiting tasks
+      {/* 4. Steps / Explanation Section */}
+      <div className="pt-16 border-t border-slate-100">
+        <div className="text-center mb-10">
+          <h2 className="text-2xl font-black text-slate-900">How to use this dashboard</h2>
+          <p className="text-slate-500 font-medium mt-1 text-sm">Follow these 3 simple steps to grow your point balance instantly.</p>
+        </div>
+        
+        <div className="grid md:grid-cols-3 gap-8">
+          {[
+            { 
+              step: '01', 
+              title: 'Open Task', 
+              desc: 'Click on the "Open Target" button to visit the Instagram profile or post directly.',
+              icon: ExternalLinkIcon,
+              color: 'bg-indigo-50 text-indigo-600'
+            },
+            { 
+              step: '02', 
+              title: 'Interact', 
+              desc: 'Follow the account or like the post as requested. Stay on the page for at least 2 seconds.',
+              icon: Sparkles,
+              color: 'bg-amber-50 text-amber-600'
+            },
+            { 
+              step: '03', 
+              title: 'Claim Points', 
+              desc: 'Come back and click "Claim Points". Your balance will update immediately.',
+              icon: CheckCircle2,
+              color: 'bg-emerald-50 text-emerald-600'
+            }
+          ].map((item, idx) => (
+            <div key={idx} className="group relative rounded-3xl border border-slate-100 bg-white p-6 transition-all hover:border-indigo-100 hover:shadow-xl hover:shadow-indigo-500/5">
+              <div className="absolute -top-4 left-6 flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-[10px] font-black text-white">
+                {item.step}
               </div>
-              <p className="mt-2 text-3xl font-semibold text-slate-900">{availableTasks.length}</p>
-              <p className="mt-1 text-sm text-slate-500">
-                {currentTask ? 'Only one task unlocks at a time. Finish the current one to load the next task.' : 'New tasks will appear here when other users create them.'}
+              <div className={`mt-2 flex h-12 w-12 items-center justify-center rounded-2xl ${item.color} group-hover:scale-110 transition-transform`}>
+                <item.icon className="h-6 w-6" />
+              </div>
+              <h4 className="mt-4 text-lg font-black text-slate-900">{item.title}</h4>
+              <p className="mt-2 text-sm font-medium text-slate-500 leading-relaxed">
+                {item.desc}
               </p>
             </div>
-
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
-              <div className="flex items-center gap-2 font-medium">
-                <CheckCircle2 className="h-4 w-4" />
-                Verification rules
-              </div>
-              <p className="mt-2">Follow tasks require the exact Instagram username.</p>
-              <p className="mt-1">Like tasks require the exact Instagram post or reel link.</p>
-              <p className="mt-1">When the check passes, points are added to the user and removed from that task balance.</p>
-            </div>
-          </div>
-        </aside>
+          ))}
+        </div>
       </div>
     </div>
   )

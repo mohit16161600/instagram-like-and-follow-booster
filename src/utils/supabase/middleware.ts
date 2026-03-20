@@ -35,24 +35,6 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Ensure every user has a row in `public.users` and starts with 50 points.
-  // This helps when the trigger/insert might not have run for existing auth users.
-  if (user) {
-    const { data: userRecord } = await supabase
-      .from('users')
-      .select('points')
-      .eq('id', user.id)
-      .single()
-
-    if (!userRecord) {
-      await supabase
-        .from('users')
-        .insert({ id: user.id, email: user.email ?? '', points: 50 })
-    } else if (userRecord.points === null || userRecord.points === 0) {
-      await supabase.from('users').update({ points: 50 }).eq('id', user.id)
-    }
-  }
-
   // Define protected routes
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard') || 
                            request.nextUrl.pathname.startsWith('/profile') ||
@@ -76,11 +58,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Admin protection
+  // Admin protection (Only for /admin paths)
   if (user && request.nextUrl.pathname.startsWith('/admin')) {
-    // We could fetch the user's role here, but let's do simple auth first
-    // For robust admin check, we query the `users` table for role = 'admin'
-    // This is optional if we prefer component-level auth for admin routes, but let's do a basic block:
     const { data: userRecord } = await supabase.from('users').select('role').eq('id', user.id).single()
     if (!userRecord || userRecord.role !== 'admin') {
       const url = request.nextUrl.clone()
